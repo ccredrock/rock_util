@@ -1,0 +1,7 @@
+{application, rock_util,
+ [{description, "rock util"},
+  {vsn, "1.0"},
+  {registered, []},
+  {applications, [kernel, stdlib, recon, lager]},
+  {env, []}
+ ]}.

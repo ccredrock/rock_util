@@ -1,0 +1,3 @@
+%% encoding: UTF-8
+{application,rock_util}.
+{modules,[rock_list,rock_util,rock_util_app,rock_util_sup]}.
