@@ -13,7 +13,7 @@
 
 %%------------------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    rock_util:start_time(),
+    rock_util:init_ets(),
     rock_util_sup:start_link().
 
 stop(_State) ->

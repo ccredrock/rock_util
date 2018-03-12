@@ -2,8 +2,9 @@
 %% ex: ts=4 sw=4 ft=erlang et
 {application, rock_util,
  [{description, "rock util"},
-  {vsn, "1.0"},
+  {vsn, "1.1"},
   {registered, []},
   {applications, [kernel, stdlib, recon, lager]},
-  {env, []}
+  {env, []},
+  {mod, {rock_util_app, []}}
  ]}.
