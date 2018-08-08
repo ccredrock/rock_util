@@ -46,8 +46,14 @@
 -define(LOG_DEBUG(OP, Type, Msg),
         begin
             flow_falcon:inc_total(OP, Type),
-            lager:debug("~p:~p ~p", [OP, Type, Msg]),
-            rock_log:log_callback(OP, Type, debug, Msg)
+            lager:debug("~p:~p ~p", [OP, Type, Msg])
+        end).
+
+-define(LOG_INFO(OP, Type, Msg),
+        begin
+            flow_falcon:inc_total(OP, Type),
+            lager:info("~p:~p ~p", [OP, Type, Msg]),
+            rock_log:log_callback(OP, Type, info, Reason)
         end).
 
 -define(LOG_WARNING(OP, Type, Reason),

@@ -1,30 +1,13 @@
-ERL=erl
-REBAR=./rebar
-BEAMDIR=./deps/*/ebin ./ebin
+PROJECT = rock_util
+PROJECT_DESCRIPTION = RedRock Util
+PROJECT_VERSION = 1.2
 
-.PHONY: deps doc test
-
-compile:
-	@$(REBAR) compile
-
-clean:
-	@$(REBAR) clean
-
-deps:
-	@$(REBAR) get-deps
-	@$(REBAR) update-deps
-
-xref:
-	@$(REBAR) xref skip_deps=true
-
-doc:
-	@$(REBAR) skip_deps=true doc
-
-test:
-	@rm -rf .eunit
-	@mkdir -p .eunit
-	@ERL_FLAGS="-config lager.config" $(REBAR) skip_deps=true eunit
-
-run:
-	@$(ERL) -pa ebin -pa deps/*/ebin -config lager.config -s rock_util start
+ERLC_OPTS += +'{parse_transform, lager_transform}'
+ERLC_OPTS += +'{lager_truncation_size, 512000}'
+ERLC_OPTS += +'{lager_extra_sinks, [much,much0,much1,much2,much3,much4]}'
+DEPS += lager
+dep_lager = git https://github.com/basho/lager master
+DEPS += recon
+dep_recon = git https://github.com/ferd/recon master
+include erlang.mk
 
