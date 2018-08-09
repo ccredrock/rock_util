@@ -21,6 +21,9 @@
          check_arg/3,
          check_url/1]).
 
+-export([init_httpc/1,
+         httpc_request/2]).
+
 -import(rock_util, [to_list/1]).
 
 %%------------------------------------------------------------------------------
@@ -167,4 +170,50 @@ check_url(<<_/binary>> = Url) ->
         _R -> throw({args_error, Url})
     end.
 
+%%------------------------------------------------------------------------------
+%% @doc httpc
+%%------------------------------------------------------------------------------
+-define(HTTP_DNS_CACHE_TIMEOUT, 1000).
+-define(HTTP_CONNECT_TIMEOUT,   1000).
+-define(HTTP_QUERY_TIMEOUT,     5000).
+
+%%------------------------------------------------------------------------------
+init_httpc(ID) when is_binary(ID) ->
+    inet_db:set_cache_refresh(?HTTP_DNS_CACHE_TIMEOUT),
+    inet_db:set_lookup([dns]),
+    Profile = binary_to_atom(rock_util:human_binary(ID), utf8),
+    ProfileName = httpc:profile_name(Profile),
+    whereis(ProfileName) =:= undefined andalso inets:start(httpc, [{profile, Profile}]),
+    httpc_manager:set_options([{max_keep_alive_length, 0}], ProfileName),
+    {_, _, HanlderETS, _, SessionETS, _, _} = sys:get_state(PID = whereis(ProfileName)),
+    put({?MODULE, httpc_profile}, PID),
+    #{profile => PID, handler => HanlderETS, session => SessionETS}.
+
+-spec httpc_request(Url::string(), Secret::#{}) ->
+    {ok, any()} | {ok, any(), any()} | {ok, any(), any(), any()} | {error, any()}.
+httpc_request(Url, Prop) ->
+    Method  = maps:get(method, Prop, post),
+    Profile = case maps:get(profile, Prop, get({?MODULE, httpc_profile})) of undefined -> default; V -> V end,
+    Sync    = maps:get(sync, Prop, true),
+    Body    = maps:get(body, Prop, <<>>),
+    Head = [{"User-Agent", "rock_util/1.0"} | form_headers(Url, Method, Prop)],
+    case catch httpc:request(Method,
+                             {Url, Head, "application/json", Body},
+                             [{connect_timeout, maps:get(connect_timeout, Prop, ?HTTP_CONNECT_TIMEOUT)},
+                              {timeout, maps:get(query_timeout, Prop, ?HTTP_QUERY_TIMEOUT)}],
+                             [{sync, Sync}],
+                             Profile) of
+        {ok, _, _, _} = Result -> Result;
+        {ok, _, _} = Result -> Result;
+        {ok, _} = Result -> Result;
+        {_, Reason} -> {error, Reason}
+    end.
+
+%% @private
+form_headers(Url, Method, #{client := Client, secret := Secret}) ->
+    MethodStr = string:to_upper(atom_to_list(Method)),
+    ba_heards(MethodStr, Url, Client, Secret);
+form_headers(_Url, _Method, #{}) ->
+    Date = httpd_util:rfc1123_date(),
+    [{"Date", Date}].
 

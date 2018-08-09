@@ -11,7 +11,9 @@
 -export([init_ets/0,
          uniq_binary/0,
          to_binary/1,
+         to_atom/1,
          to_list/1,
+         human_string/1,
          human_binary/1]).
 
 %%------------------------------------------------------------------------------
@@ -45,6 +47,17 @@ to_list(X) when is_binary(X) -> binary_to_list(X);
 to_list(X) when is_atom(X) -> atom_to_list(X);
 to_list(X) when is_integer(X) -> integer_to_list(X).
 
-human_binary(Term) ->
-    list_to_binary(io_lib:format("~p",[Term])).
+to_atom(X) when is_atom(X) -> X;
+to_atom(X) when is_binary(X) -> binary_to_atom(X, utf8);
+to_atom(X) when is_integer(X) -> to_atom(integer_to_binary(X));
+to_atom(X) -> to_atom(list_to_binary(human_string(X))).
+
+human_string(X) ->
+    case catch io_lib:format("~s", [X]) of
+        {'EXIT', _} -> io_lib:format("~p", [X]);
+        X1 -> X1
+    end.
+
+human_binary(X) ->
+    list_to_binary(human_string(X)).
 

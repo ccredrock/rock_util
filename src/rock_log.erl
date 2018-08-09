@@ -64,8 +64,8 @@ nt_alarm(OP, Type, Level, Data) ->
     Body = jsx:encode([{<<"hostName">>, list_to_binary(Host)},
                        {<<"serverName">>, list_to_binary(Project)},
                        {<<"level">>, case Level of info -> 4; warning -> 3; error -> 1 end},
-                       {<<"reason">>, list_to_binary(format(map_get(reason, Data, {OP, Type})))},
-                       {<<"msg">>, list_to_binary(format(map_get(content, Data, Data)))},
+                       {<<"reason">>, list_to_binary(rock_util:human(map_get(reason, Data, {OP, Type})))},
+                       {<<"msg">>, list_to_binary(rock_util:human(map_get(content, Data, Data)))},
                        {<<"targetUrl">>, map_get(target, Data, <<>>)},
                        {<<"tenantId">>, map_get(tenant, Data, <<>>)}]),
     catch httpc:request(post, {Url, [], "application/json", Body}, [], []).
@@ -74,11 +74,5 @@ map_get(K, M, D) ->
     case catch maps:get(K, M) of
         {'EXIT', _} -> D;
         R -> R
-    end.
-
-format(V) ->
-    case catch io_lib:format("~s", [V]) of
-        {'EXIT', _} -> io_lib:format("~p", [V]);
-        V2 -> V2
     end.
 
