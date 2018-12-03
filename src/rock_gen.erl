@@ -14,8 +14,7 @@
 %%------------------------------------------------------------------------------
 %% define
 %%------------------------------------------------------------------------------
--record(state, {mod, cst, parasitic, flush,
-                safe_seq = erlang:unique_integer([monotonic])}).
+-record(state, {mod, cst, parasitic, flush, safe_seq}).
 
 %%------------------------------------------------------------------------------
 %% interface
@@ -86,11 +85,11 @@ handle_cast(Msg, #state{mod = Mod, cst = CS} = PS) ->
     end.
 
 handle_info({{?MODULE, safe_send}, Seq, Msg}, #state{safe_seq = OldSeq} = PS) ->
-    case Seq =< OldSeq of
+    case OldSeq =/= undefined andalso Seq =< OldSeq of
         false ->
             handle_info(Msg, PS#state{safe_seq = Seq});
         true ->
-            error_logger:warning_msg("rock_gen safe_send drop ~p", [Msg]),
+            error_logger:warning_msg("rock_gen safe_send drop ~p", [{Seq, OldSeq, Msg}]),
             {noreply, PS}
     end;
 handle_info({'DOWN', Ref, process, _, _}, #state{parasitic = Ref} = State) ->

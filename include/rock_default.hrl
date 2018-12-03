@@ -24,7 +24,8 @@ hl() ->
      {"eq/2",  "etop message queue"},
      {"es/2",  "etop stop"},
      {"fp/1",  "fprof"},
-     {"ep/1",  "eprof"}].
+     {"ep/1",  "eprof"},
+     {"dt/1",  "debug trace"}].
 
 %%------------------------------------------------------------------------------
 hs() -> hs(user_default).
@@ -97,6 +98,11 @@ ep(Fun, FileName) ->
     eprof:profile(Fun),
     eprof:log(FileName),
     eprof:analyze().
+
+dt(M, F) ->
+    dbg:tracer(process, {fun(Msg, _) -> io:format("~p\n", [Msg]) end, []}),
+    dbg:tpl(M, F, '_', []),
+    dbg:p(all, c).
 
 -endif.
 

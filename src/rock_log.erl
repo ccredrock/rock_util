@@ -9,20 +9,22 @@
 -export([lager_trace/4,
          much_trace/3,
          hash_log/3,
+         hash_log_async/3,
          log_callback/1,
          log_callback/4,
-         nt_alarm/4]).
+         nt_alarm/4,
+         nt_alarm_async/4]).
 
 %%------------------------------------------------------------------------------
-lager_trace(Type, Name, Size, Count) ->
-    lager_trace(much_lager_event, Type, Name, Size, Count).
+lager_trace(Tags, Name, Size, Count) ->
+    lager_trace(much_lager_event, Tags, Name, Size, Count).
 
-lager_trace(Sink, Type, Name, Size, Count) ->
+lager_trace(Sink, Tags, Name, Size, Count) ->
     Server  = application:get_env(lager, servername, "dev"),
     AppKey  = application:get_env(lager, appkey, "dev"),
     LogName = application:get_env(lager, loggername, "dev"),
-    lager:trace_file(atom_to_list(Type) ++ "/" ++ atom_to_list(Name) ++ ".log",
-                     [{Type, Name}, {sink, Sink}],
+    lager:trace_file("much/" ++ atom_to_list(Tags) ++ "_" ++ atom_to_list(Name) ++ ".log",
+                     [{Tags, Name}, {sink, Sink}],
                      info,
                      [{size, Size * 1024 * 1024},
                       {count, Count},
@@ -32,9 +34,9 @@ lager_trace(Sink, Type, Name, Size, Count) ->
 log_callback(Fun) ->
     ets:insert(rock_util, [{log_callback, Fun}]).
 
-log_callback(OP, Type, Level, Msg) ->
+log_callback(Metric, Tags, Level, Msg) ->
     case ets:lookup(rock_util, log_callback) of
-        [{_, Fun}] -> Fun(OP, Type, Level, Msg);
+        [{_, Fun}] -> Fun(Metric, Tags, Level, Msg);
         [] -> skip
     end.
 
@@ -49,6 +51,22 @@ much_trace(Name, Size, Count) ->
 hash_log(Key, Name, Val) ->
     log_msg(erlang:phash2(Key, 5), Name, Val).
 
+hash_log_async(Key, Name, Val) ->
+    Hash = erlang:phash2(Key, 5),
+    case global:whereis_name({Name, Hash}) of
+        undefined ->
+            PID = spawn(fun Fun() -> receive {log_msg, H, N, V} -> log_msg(H, N, V), Fun(); _ -> skip, Fun() end end),
+         PID ! {log_msg, Hash, Name, Val},
+         global:register_name({Name, Hash}, PID);
+      PID ->
+         PID ! {log_msg, Hash, Name, Val}
+    end.
+
+log_msg(0, Name, #{xmdt := Tags, message := Val}) -> much0:info([{much0, Name}], "#XMDJ#~ts#XMDJ# ~p", [jsx:encode(Tags), Val]);
+log_msg(1, Name, #{xmdt := Tags, message := Val}) -> much1:info([{much1, Name}], "#XMDJ#~ts#XMDJ# ~p", [jsx:encode(Tags), Val]);
+log_msg(2, Name, #{xmdt := Tags, message := Val}) -> much2:info([{much2, Name}], "#XMDJ#~ts#XMDJ# ~p", [jsx:encode(Tags), Val]);
+log_msg(3, Name, #{xmdt := Tags, message := Val}) -> much3:info([{much3, Name}], "#XMDJ#~ts#XMDJ# ~p", [jsx:encode(Tags), Val]);
+log_msg(4, Name, #{xmdt := Tags, message := Val}) -> much4:info([{much4, Name}], "#XMDJ#~ts#XMDJ# ~p", [jsx:encode(Tags), Val]);
 log_msg(0, Name, Val) -> much0:info([{much0, Name}], "~p", [Val]);
 log_msg(1, Name, Val) -> much1:info([{much1, Name}], "~p", [Val]);
 log_msg(2, Name, Val) -> much2:info([{much2, Name}], "~p", [Val]);
@@ -56,16 +74,16 @@ log_msg(3, Name, Val) -> much3:info([{much3, Name}], "~p", [Val]);
 log_msg(4, Name, Val) -> much4:info([{much4, Name}], "~p", [Val]).
 
 %%------------------------------------------------------------------------------
--spec nt_alarm(OP::any(), Type::any(), Level::atom(), Msg::any()) -> any().
-nt_alarm(OP, Type, Level, Data) ->
+-spec nt_alarm(Metric::any(), Tags::any(), Level::atom(), Msg::any()) -> any().
+nt_alarm(Metric, Tags, Level, Data) ->
     {Project, _} = init:script_id(),
     {ok, Url} = application:get_env(list_to_atom(Project), nt_url),
     {ok, Host} = inet:gethostname(),
     Body = jsx:encode([{<<"hostName">>, list_to_binary(Host)},
                        {<<"serverName">>, list_to_binary(Project)},
                        {<<"level">>, case Level of info -> 4; warning -> 3; error -> 1 end},
-                       {<<"reason">>, list_to_binary(rock_util:human(map_get(reason, Data, {OP, Type})))},
-                       {<<"msg">>, list_to_binary(rock_util:human(map_get(content, Data, Data)))},
+                       {<<"reason">>, rock_util:human_binary(map_get(reason, Data, {Metric, Tags}))},
+                       {<<"msg">>, rock_util:human_binary(map_get(content, Data, Data))},
                        {<<"targetUrl">>, map_get(target, Data, <<>>)},
                        {<<"tenantId">>, map_get(tenant, Data, <<>>)}]),
     catch httpc:request(post, {Url, [], "application/json", Body}, [], []).
@@ -75,4 +93,8 @@ map_get(K, M, D) ->
         {'EXIT', _} -> D;
         R -> R
     end.
+
+-spec nt_alarm_async(Metric::any(), Tags::any(), Level::atom(), Msg::any()) -> any().
+nt_alarm_async(Metric, Tags, Level, Data) ->
+    spawn(fun() -> nt_alarm(Metric, Tags, Level, Data) end).
 
