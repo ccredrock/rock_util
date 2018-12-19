@@ -8,6 +8,8 @@
 
 -export([safe_send/3]).
 
+-export([get_state/1, replace_state/2]).
+
 -export([start/3, start/4, start_link/3, start_link/4, init/1,
          handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -38,6 +40,16 @@ ensure_send(PID, Msg) ->
                 true -> erlang:demonitor(Ref), {ok, Msg}
             end
     end.
+
+%%------------------------------------------------------------------------------
+get_state(PID) ->
+    case sys:get_state(PID) of
+        #state{cst = C} -> C;
+        Result -> Result
+    end.
+
+replace_state(PID, Fun) ->
+    sys:replace_state(PID, fun(#state{cst = C} = State) -> State#state{cst = Fun(C)} end).
 
 %%------------------------------------------------------------------------------
 %% gen_server
