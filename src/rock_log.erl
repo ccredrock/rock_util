@@ -16,6 +16,10 @@
          nt_alarm_async/4]).
 
 %%------------------------------------------------------------------------------
+-define(HASH_LOG_NAME(N, H),
+        binary_to_atom(<<"rock_log_", (rock_util:to_binary(N))/binary, "@", (integer_to_binary(H))/binary>>, utf8)).
+
+%%------------------------------------------------------------------------------
 lager_trace(Tags, Name, Size, Count) ->
     lager_trace(much_lager_event, Tags, Name, Size, Count).
 
@@ -53,11 +57,17 @@ hash_log(Key, Name, Val) ->
 
 hash_log_async(Key, Name, Val) ->
     Hash = erlang:phash2(Key, 5),
-    case global:whereis_name({Name, Hash}) of
+    case erlang:whereis(ProcName = ?HASH_LOG_NAME(Name, Hash)) of
         undefined ->
-            PID = spawn(fun Fun() -> receive {log_msg, H, N, V} -> log_msg(H, N, V), Fun(); _ -> skip, Fun() end end),
-         PID ! {log_msg, Hash, Name, Val},
-         global:register_name({Name, Hash}, PID);
+         PID = spawn(fun Fun() ->
+                        receive {log_msg, H, N, V} -> log_msg(H, N, V), erlang:garbage_collect(), Fun();
+                                _ -> skip, Fun()
+                        end
+                     end),
+         case catch erlang:register(ProcName, PID) of
+             {'EXIT', _} -> whereis(ProcName) ! {log_msg, Hash, Name, Val};
+             _ -> PID ! {log_msg, Hash, Name, Val}
+         end;
       PID ->
          PID ! {log_msg, Hash, Name, Val}
     end.
